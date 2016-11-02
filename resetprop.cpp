@@ -22,75 +22,15 @@
  * 
  */
 
-#define ANDROID_7 1
-
-// copy the includes from bionic/libc/bionic/system_properties.cpp
-
-#ifdef ANDROID_7
-// 7.0
-#include <new>
-#include <stdatomic.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <stddef.h>
-#include <errno.h>
-#include <poll.h>
-#include <fcntl.h>
-#include <stdbool.h>
-#include <string.h>
-
-#include <sys/mman.h>
-
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/select.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <netinet/in.h>
 
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
-#include <sys/_system_properties.h>
+#include "_system_properties.h"
 #include <sys/system_properties.h>
-
-#include "../../../private/bionic_futex.h"
-#include "../../../private/bionic_macros.h"
-
-#else
-// 5.1 ~ 6.0
-#include <new>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <stddef.h>
-#include <errno.h>
-#include <poll.h>
-#include <fcntl.h>
-#include <stdbool.h>
-#include <string.h>
-
-#include <sys/mman.h>
-
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/select.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <unistd.h>
-
-#define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
-#include <sys/_system_properties.h>
-#include <sys/system_properties.h>
-
-#include "../../../private/bionic_atomic_inline.h"
-#include "../../../private/bionic_futex.h"
-#include "../../../private/bionic_macros.h"
-
-// #include "init.h"
-#endif
 
 /* Info:
  * 

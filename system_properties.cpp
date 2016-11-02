@@ -50,13 +50,13 @@
 #include <sys/xattr.h>
 
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
-#include <sys/_system_properties.h>
+#include "_system_properties.h"
 #include <sys/system_properties.h>
 
-#include "private/bionic_futex.h"
-#include "private/bionic_lock.h"
-#include "private/bionic_macros.h"
-#include "private/libc_logging.h"
+#include "bionic_futex.h"
+#include "bionic_lock.h"
+#include "bionic_macros.h"
+#include "libc_logging.h"
 
 static const char property_service_socket[] = "/dev/socket/" PROP_SERVICE_NAME;
 
@@ -1188,9 +1188,9 @@ const prop_info *__system_property_find(const char *name)
         return nullptr;
     }
 
-    if (__predict_false(compat_mode)) {
-        return __system_property_find_compat(name);
-    }
+    // if (__predict_false(compat_mode)) {
+    //     return __system_property_find_compat(name);
+    // }
 
     prop_area* pa = get_prop_area_for_name(name);
     if (!pa) {
@@ -1208,9 +1208,9 @@ const prop_info *__system_property_del(const char *name)
     }
 
     // we're not handling old stuff
-    if (__predict_false(compat_mode)) {
-        return __system_property_find_compat(name);
-    }
+    // if (__predict_false(compat_mode)) {
+    //     return __system_property_find_compat(name);
+    // }
 
     prop_area* pa = get_prop_area_for_name(name);
     if (!pa) {
@@ -1231,9 +1231,9 @@ static inline uint_least32_t load_const_atomic(const atomic_uint_least32_t* s,
 
 int __system_property_read(const prop_info *pi, char *name, char *value)
 {
-    if (__predict_false(compat_mode)) {
-        return __system_property_read_compat(pi, name, value);
-    }
+    // if (__predict_false(compat_mode)) {
+    //     return __system_property_read_compat(pi, name, value);
+    // }
 
     while (true) {
         uint32_t serial = __system_property_serial(pi); // acquire semantics
@@ -1409,9 +1409,9 @@ int __system_property_foreach(void (*propfn)(const prop_info *pi, void *cookie),
         return -1;
     }
 
-    if (__predict_false(compat_mode)) {
-        return __system_property_foreach_compat(propfn, cookie);
-    }
+    // if (__predict_false(compat_mode)) {
+    //     return __system_property_foreach_compat(propfn, cookie);
+    // }
 
     list_foreach(contexts, [propfn, cookie](context_node* l) {
         if (l->check_access_and_open()) {
