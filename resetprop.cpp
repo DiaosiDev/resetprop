@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/types.h>
 
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
@@ -67,6 +68,8 @@
  *
  */
 
+int verbose = 0, del = 0, file = 0, trigger = 1;
+
 static bool is_legal_property_name(const char* name, size_t namelen)
 {
     size_t i;
@@ -106,59 +109,121 @@ int x_property_set(const char *name, const char *value)
     if (valuelen >= PROP_VALUE_MAX) return -1;
 
     pi = (prop_info*) __system_property_find(name);
+    __system_property_get(name, value_read);
 
-    if(pi != 0) {
+    if(strlen(value_read)) {
         /* ro.* properties may NEVER be modified once set */
         //if(!strncmp(name, "ro.", 3)) return -1;
 
-        __system_property_get(name, value_read);
-        printf("   existing property '%s' value='%s'\n", name, value_read);
+        // __system_property_get(name, value_read);
+        printf("   Existing property: '%s'='%s'\n", name, value_read);
 
-        __system_property_update(pi, value, valuelen);
-
-        __system_property_get(name, value_read);
-        printf("   existing property '%s' now set to value='%s'\n", name, value_read);
-    } else {
-        ret = __system_property_add(name, namelen, value, valuelen);
-        if (ret < 0) {
-            printf("Failed to set '%s'='%s'\n", name, value);
-            return ret;
+        if (trigger) {
+            __system_property_del(name);
+            ret = __system_property_set(name, value);
+        } else {
+            ret = __system_property_update(pi, value, valuelen);
         }
-        __system_property_get(name, value_read);
-        printf("   non-existing property '%s' now set to value='%s'\n", name, value_read);
+
+    } else {
+        if (trigger) {
+            ret = __system_property_set(name, value);
+        } else {
+            ret = __system_property_update(pi, value, valuelen);
+        }
     }
 
-    //property_changed(name, value);
+    if (ret != 0) {
+        printf("Failed to set '%s'='%s'\n", name, value);
+        return ret;
+    }
+
+    __system_property_get(name, value_read);
+    printf("   Changed property: '%s'='%s'\n", name, value_read);
+
     return 0;
+}
+
+int usage(char* name) {
+    fprintf(stderr, "usage: %s [-v] [-n] [--file propfile] [--delete name] [ name value ] \n", name);
+    fprintf(stderr, "   -v :\n");
+    fprintf(stderr, "      verbose output (Default: Disabled)\n");
+    fprintf(stderr, "   -n :\n");
+    fprintf(stderr, "      no event triggers when changing props (Default: Will trigger events)\n");
+    fprintf(stderr, "   --file propfile :\n");
+    fprintf(stderr, "      Read props from prop files (e.g. build.prop)\n");
+    fprintf(stderr, "   --delete name :\n");
+    fprintf(stderr, "      Remove a prop entry\n\n");
+    return 1;
 }
 
 int main(int argc, char *argv[])
 {
-    printf("Hacky setprop v0.3.0 by nkk71\n");
-    if(argc != 3) {
-        //fprintf(stderr,"usage: setprop <key> <value> <trigger property_changed>\n");
-        fprintf(stderr,"usage: %s <key> <value>\n", argv[0]);
-        return 1;
+    
+    int exp_arg = 2, stdout_bak, null;
+    char *name, *value, *filename;
+
+    if (argc < 3) {
+        return usage(argv[0]);
     }
 
-    printf("   initializing...\n");
-    if (__system_properties_init()) {
-        printf("Error during init.\n");
-        return 1;
-    }
-
-    if (strcmp(argv[1], "--delete") == 0) {
-        printf("   attempting to delete '%s'...\n", argv[2]);
-        __system_property_del(argv[2]);
-    }
-    else {
-        printf("   attempting to set '%s' to '%s'...\n", argv[1], argv[2]);
-        if(x_property_set(argv[1], argv[2])){
-            fprintf(stderr,"Could not set property.\n");
-            return 1;
+    for (int i = 1; i < argc; ++i) {
+        if (!strcmp("-v", argv[i])) {
+            verbose = 1;
+        } else if (!strcmp("-n", argv[i])) {
+            trigger = 0;
+        } else if (!strcmp("--file", argv[i])) {
+            file = 1;
+            exp_arg = 1;
+        } else if (!strcmp("--delete", argv[i])) {
+            del = 1;
+            exp_arg = 1;
+        } else {
+            if (i + exp_arg > argc) {
+                return usage(argv[0]);
+            }
+            if (file) {
+                filename = argv[i];
+                break;
+            } else {
+                if(!is_legal_property_name(argv[i], strlen(argv[i]))) {
+                    fprintf(stderr, "Illegal property name \'%s\'\n", argv[i]);
+                    return 1;
+                }
+                name = argv[i];
+                if (exp_arg > 1) value = argv[i + 1];
+                break;
+            }
         }
     }
-    printf("Finished.\n\n");
 
+    if (!verbose) {
+        fflush(stdout);
+        stdout_bak = dup(1);
+        null = open("/dev/null", O_WRONLY);
+        dup2(null, 1);
+    }
+
+    printf("Hacky setprop by nkk71\n");
+    printf("Modified for Magisk by topjohnwu\n");
+
+    printf("   Initializing...\n");
+    if (__system_properties_init()) {
+        fprintf(stderr, "Error during init\n");
+        return 1;
+    }
+
+    if (file) {
+        printf("   Attempting to read props from '%s'\n", filename);
+        // TODO!!
+    } else if (del) {
+        printf("   Attempting to delete '%s'\n", name);
+        __system_property_del(name);
+    } else {
+        printf("   Attempting to set '%s'='%s'\n", name, value);
+        if(x_property_set(name, value)) return 1;
+    }
+    printf("Done!\n\n");
     return 0;
+
 }
