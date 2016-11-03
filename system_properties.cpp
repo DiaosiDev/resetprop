@@ -539,7 +539,6 @@ const prop_info *prop_area::find_property_and_del(prop_bt *const trie, const cha
 
     const char *remaining_name = name;
     prop_bt* current = trie;
-    prop_bt* parent = NULL;
     while (true) {
         const char *sep = strchr(remaining_name, '.');
         const bool want_subtree = (sep != NULL);
@@ -560,7 +559,6 @@ const prop_info *prop_area::find_property_and_del(prop_bt *const trie, const cha
             return NULL;
         }
 
-        parent = current;
         current = find_prop_bt(root, remaining_name, substr_size, false);
         if (!current) {
             return NULL;
@@ -574,27 +572,14 @@ const prop_info *prop_area::find_property_and_del(prop_bt *const trie, const cha
 
     uint_least32_t prop_offset = atomic_load_explicit(&current->prop, memory_order_relaxed);
     if (prop_offset != 0) {
-
-        // okay we found it at: prop_bt* current
-        // remove it from the trie, the actual prop stays
-
-        // what's all this atomic crap??
-        //uint_least32_t left_offset = atomic_load_explicit(&current->children, memory_order_relaxed);
-        //uint_least32_t right_offset = atomic_load_explicit(&current->children, memory_order_relaxed);
-        //uint_least32_t children_offset = atomic_load_explicit(&current->children, memory_order_relaxed);
-        // uint_least32_t off = atomic_load_explicit(off_p, memory_order_consume);
-
-        
-        printf("   [bt] found at %p name='%s' prop='%llu' left='%llu' right='%llu' children='%llu'\n",
+        printf("   [bt] found at %p: name='%s' prop='%llu' left='%llu' right='%llu' children='%llu'\n",
                static_cast<void*>(current), current->name,
                static_cast<unsigned long long>(atomic_load_explicit(&current->prop, memory_order_relaxed)),
                static_cast<unsigned long long>(atomic_load_explicit(&current->left, memory_order_relaxed)),
                static_cast<unsigned long long>(atomic_load_explicit(&current->right, memory_order_relaxed)),
                static_cast<unsigned long long>(atomic_load_explicit(&current->children, memory_order_relaxed))
               );
-        printf("   [bt] nullify prop\n");
         atomic_store_explicit(&current->prop, 0, memory_order_release);
-
         return to_prop_info(&current->prop);
     } else {
         printf("   [bt] property not found\n");

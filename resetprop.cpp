@@ -2,7 +2,8 @@
  *
  * resetprop.cpp
  * 
- * Copyright 2016 nkk71 <nkk71x@gmail.com>
+ * Copyright 2016 nkk71     <nkk71x@gmail.com>
+ * Copyright 2016 topjohnwu <topjohnwu#gmail.com>
  *
  * 
  * This program is free software; you can redistribute it and/or modify
@@ -39,11 +40,7 @@
  *
  * bionic/libc/bionic/system_properties.cpp
  *
- * we can avoid changes in bionic/libc/include/_system_properties.h
- * by directly patching __system_properties_init() 
- *
- * 
- * Functions that need to be patched in system_properties.cpp
+ * Functions that need to be patched/added in system_properties.cpp
  *
  * int __system_properties_init()
  *     on android 7, first tear down the everything then let it initialize again:
@@ -60,7 +57,23 @@
  *
  * static prop_area* map_fd_ro(const int fd)
  *     we dont want this read only so change: 'PROT_READ' to 'PROT_READ | PROT_WRITE'
+ * 
+ *
+ * Copy the code of prop_info *prop_area::find_property, and modify to delete props
+ * const prop_info *prop_area::find_property_and_del(prop_bt *const trie, const char *name)
+ * {
+ *    ... 
+ *    ...  Do not alloc a new prop_bt here, remove all code involve alloc_if_needed
+ *    ...
+ * 
+ *     if (prop_offset != 0) {
+ *         atomic_store_explicit(&current->prop, 0, memory_order_release); // Add this line to nullify the prop entry
+ *         return to_prop_info(&current->prop);
+ *     } else {
  *     
+ *    ....
+ * }
+ *      
  *
  * by patching just those functions directly, all other functions should be ok
  * as is.
@@ -104,10 +117,11 @@ int x_property_set(const char *name, const char *value)
     size_t namelen = strlen(name);
     size_t valuelen = strlen(value);
 
-    if (!is_legal_property_name(name, namelen)) return -1;
-    if (valuelen >= PROP_VALUE_MAX) return -1;
-
-    printf("   Attempting to set '%s'='%s'\n", name, value);
+    if (trigger) {
+        printf("   Set with property_service: '%s'='%s'\n", name, value);
+    } else {
+        printf("   Modify data structure: '%s'='%s'\n", name, value);
+    }
 
     __system_property_get(name, value_read);
 
@@ -115,35 +129,36 @@ int x_property_set(const char *name, const char *value)
         printf("   Existing property: '%s'='%s'\n", name, value_read);
         if (trigger) {
             if (!strncmp(name, "ro.", 3)) __system_property_del(name); // Only delete ro props
-            printf("   Set with property_service\n");
             ret = __system_property_set(name, value);
         } else {
-            printf("   Directly modify data structure\n");
             ret = __system_property_update((prop_info*) __system_property_find(name), value, valuelen);
         }
     } else {
         if (trigger) {
-            printf("   Set with property_service\n");
             ret = __system_property_set(name, value);
         } else {
-            printf("   Directly modify data structure\n");
             ret = __system_property_add(name, namelen, value, valuelen);
         }
     }
 
     if (ret != 0) {
-        printf("Failed to set '%s'='%s'\n", name, value);
+        fprintf(stderr, "Failed to set '%s'='%s'\n", name, value);
         return ret;
     }
 
     __system_property_get(name, value_read);
-    printf("   Changed property: '%s'='%s'\n", name, value_read);
+    printf("   Check property: '%s'='%s'\n", name, value_read);
 
     return 0;
 }
 
-void read_prop_file(const char* filename) {
+int read_prop_file(const char* filename) {
+    printf("   Attempting to read props from \'%s\'\n", filename);
     FILE *fp = fopen(filename, "r");
+    if (fp == NULL) {
+        fprintf(stderr, "Cannot open \'%s\'\n", filename);
+        return 1;
+    }
     char *line = NULL, name[PROP_NAME_MAX], value[PROP_VALUE_MAX];
     size_t len;
     ssize_t read;
@@ -163,6 +178,7 @@ void read_prop_file(const char* filename) {
     }
     free(line);
     fclose(fp);
+    return 0;
 }
 
 int usage(char* name) {
@@ -212,7 +228,13 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 name = argv[i];
-                if (exp_arg > 1) value = argv[i + 1];
+                if (exp_arg > 1) {
+                    if (strlen(argv[i + 1]) >= PROP_VALUE_MAX) {
+                        fprintf(stderr, "Value too long \'%s\'\n", argv[i + 1]);
+                        return 1;
+                    }
+                    value = argv[i + 1];
+                }
                 break;
             }
         }
@@ -235,11 +257,10 @@ int main(int argc, char *argv[])
     }
 
     if (file) {
-        printf("   Attempting to read props from '%s'\n", filename);
-        read_prop_file(filename);
+        if (read_prop_file(filename)) return 1;
     } else if (del) {
         printf("   Attempting to delete '%s'\n", name);
-        __system_property_del(name);
+        if (__system_property_del(name)) return 1;
     } else {
         if(x_property_set(name, value)) return 1;
     }
