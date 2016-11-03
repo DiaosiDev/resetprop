@@ -133,7 +133,7 @@ unsigned int __system_property_area_serial();
 int __system_property_add(const char *name, unsigned int namelen,
 			const char *value, unsigned int valuelen);
 
-const prop_info *__system_property_del(const char *name);
+int __system_property_del(const char *name);
 
 /* Update the value of a system property returned by
 ** __system_property_find.  Can only be done by a single process

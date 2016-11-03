@@ -592,38 +592,9 @@ const prop_info *prop_area::find_property_and_del(prop_bt *const trie, const cha
                static_cast<unsigned long long>(atomic_load_explicit(&current->right, memory_order_relaxed)),
                static_cast<unsigned long long>(atomic_load_explicit(&current->children, memory_order_relaxed))
               );
-        printf("   [bt] setting name to null\n");
-        current->namelen = 0;
-        current->name[0] = '\0';
+        printf("   [bt] nullify prop\n");
+        atomic_store_explicit(&current->prop, 0, memory_order_release);
 
-        // we should also remove the entry from the tree (ie parent)
-        // TODO: possibly even traverse all the way back??
-        if (!parent) {
-            printf("   [bt] parent is null, weird\n");
-        }
-        else {
-            // is it possible for the current to have any children????
-            // in which case we would probably need to set them in parent????
-
-            printf("   [bt] checking parent left='%llu'\n", static_cast<unsigned long long>(atomic_load_explicit(&parent->left, memory_order_relaxed)));
-            if (current == to_prop_bt(&parent->left)) {
-                printf("[bt]    parent left matches (weird), setting to 0\n");
-                atomic_store_explicit(&parent->left, 0, memory_order_release);
-            }
-            printf("   [bt] checking parent right='%llu'\n", static_cast<unsigned long long>(atomic_load_explicit(&parent->right, memory_order_relaxed)));
-            if (current == to_prop_bt(&parent->right)) {
-                printf("   [bt]    parent right matches (weird), setting to 0\n");
-                atomic_store_explicit(&parent->right, 0, memory_order_release);
-            }
-            printf("   [bt] checking parent children='%llu'\n", static_cast<unsigned long long>(atomic_load_explicit(&parent->children, memory_order_relaxed)));
-            if (current == to_prop_bt(&parent->children)) {
-                printf("   [bt]    parent children matches, setting to 0\n");
-                atomic_store_explicit(&parent->children, 0, memory_order_release);
-            }
-        }
-        printf("   [bt] done, removed the bt entry, the old property is at '%llu'\n", static_cast<unsigned long long>(atomic_load_explicit(&current->prop, memory_order_relaxed)));
-
-        // should we delete that too? but what's the point since the database only increases this memory is never freed
         return to_prop_info(&current->prop);
     } else {
         printf("   [bt] property not found\n");
@@ -1201,24 +1172,31 @@ const prop_info *__system_property_find(const char *name)
     return pa->find(name);
 }
 
-const prop_info *__system_property_del(const char *name)
+int __system_property_del(const char *name)
 {
     if (!__system_property_area__) {
-        return nullptr;
+        return -1;
     }
-
-    // we're not handling old stuff
-    // if (__predict_false(compat_mode)) {
-    //     return __system_property_find_compat(name);
-    // }
 
     prop_area* pa = get_prop_area_for_name(name);
     if (!pa) {
-        __libc_format_log(ANDROID_LOG_ERROR, "libc", "Access denied finding/deleting property \"%s\"", name);
-        return nullptr;
+        __libc_format_log(ANDROID_LOG_ERROR, "libc", "Access denied deleting property \"%s\"", name);
+        return -1;
     }
 
-    return pa->del(name);
+    bool ret = pa->del(name);
+    if (!ret)
+        return -1;
+
+    // There is only a single mutator, but we want to make sure that
+    // updates are visible to a reader waiting for the update.
+    atomic_store_explicit(
+        __system_property_area__->serial(),
+        atomic_load_explicit(__system_property_area__->serial(), memory_order_relaxed) + 1,
+        memory_order_release);
+    __futex_wake(__system_property_area__->serial(), INT32_MAX);
+    return 0;
+
 }
 
 // The C11 standard doesn't allow atomic loads from const fields,
