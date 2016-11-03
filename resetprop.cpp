@@ -98,9 +98,8 @@ static bool is_legal_property_name(const char* name, size_t namelen)
 
 int x_property_set(const char *name, const char *value)
 {
-    prop_info *pi;
     int ret;
-    char value_read[PROP_VALUE_MAX+1];
+    char value_read[PROP_VALUE_MAX];
 
     size_t namelen = strlen(name);
     size_t valuelen = strlen(value);
@@ -108,28 +107,27 @@ int x_property_set(const char *name, const char *value)
     if (!is_legal_property_name(name, namelen)) return -1;
     if (valuelen >= PROP_VALUE_MAX) return -1;
 
-    pi = (prop_info*) __system_property_find(name);
+    printf("   Attempting to set '%s'='%s'\n", name, value);
+
     __system_property_get(name, value_read);
 
     if(strlen(value_read)) {
-        /* ro.* properties may NEVER be modified once set */
-        //if(!strncmp(name, "ro.", 3)) return -1;
-
-        // __system_property_get(name, value_read);
         printf("   Existing property: '%s'='%s'\n", name, value_read);
-
         if (trigger) {
-            __system_property_del(name);
+            if (!strncmp(name, "ro.", 3)) __system_property_del(name); // Only delete ro props
+            printf("   Set with property_service\n");
             ret = __system_property_set(name, value);
         } else {
-            ret = __system_property_update(pi, value, valuelen);
+            printf("   Directly modify data structure\n");
+            ret = __system_property_update((prop_info*) __system_property_find(name), value, valuelen);
         }
-
     } else {
         if (trigger) {
+            printf("   Set with property_service\n");
             ret = __system_property_set(name, value);
         } else {
-            ret = __system_property_update(pi, value, valuelen);
+            printf("   Directly modify data structure\n");
+            ret = __system_property_add(name, namelen, value, valuelen);
         }
     }
 
@@ -142,6 +140,29 @@ int x_property_set(const char *name, const char *value)
     printf("   Changed property: '%s'='%s'\n", name, value_read);
 
     return 0;
+}
+
+void read_prop_file(const char* filename) {
+    FILE *fp = fopen(filename, "r");
+    char *line = NULL, name[PROP_NAME_MAX], value[PROP_VALUE_MAX];
+    size_t len;
+    ssize_t read;
+    int no_data = 0;
+    while ((read = getline(&line, &len, fp)) != -1) {
+        no_data = 1;
+        for (int i = 0; i < read; ++i) {
+            if (line[i] == ' ') continue;
+            else {
+                if (line[i] != '#') no_data = 0;
+                break;
+            }
+        }
+        if (no_data) continue;
+        if (sscanf(line, "%[^=]=%s", name, value) == 2)
+            x_property_set(name, value);
+    }
+    free(line);
+    fclose(fp);
 }
 
 int usage(char* name) {
@@ -215,12 +236,11 @@ int main(int argc, char *argv[])
 
     if (file) {
         printf("   Attempting to read props from '%s'\n", filename);
-        // TODO!!
+        read_prop_file(filename);
     } else if (del) {
         printf("   Attempting to delete '%s'\n", name);
         __system_property_del(name);
     } else {
-        printf("   Attempting to set '%s'='%s'\n", name, value);
         if(x_property_set(name, value)) return 1;
     }
     printf("Done!\n\n");
