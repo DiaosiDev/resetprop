@@ -572,7 +572,7 @@ const prop_info *prop_area::find_property_and_del(prop_bt *const trie, const cha
 
     uint_least32_t prop_offset = atomic_load_explicit(&current->prop, memory_order_relaxed);
     if (prop_offset != 0) {
-        printf("   [bt] found at %p: name='%s' prop='%llu' left='%llu' right='%llu' children='%llu'\n",
+        printf("[bt] found at %p: name='%s' prop='%llu' left='%llu' right='%llu' children='%llu'\n",
                static_cast<void*>(current), current->name,
                static_cast<unsigned long long>(atomic_load_explicit(&current->prop, memory_order_relaxed)),
                static_cast<unsigned long long>(atomic_load_explicit(&current->left, memory_order_relaxed)),
@@ -582,7 +582,7 @@ const prop_info *prop_area::find_property_and_del(prop_bt *const trie, const cha
         atomic_store_explicit(&current->prop, 0, memory_order_release);
         return to_prop_info(&current->prop);
     } else {
-        printf("   [bt] property not found\n");
+        printf("[bt] property not found\n");
         return NULL;
     }
 }

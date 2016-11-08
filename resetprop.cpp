@@ -118,15 +118,15 @@ int x_property_set(const char *name, const char *value)
     size_t valuelen = strlen(value);
 
     if (trigger) {
-        printf("   Set with property_service: '%s'='%s'\n", name, value);
+        printf("Set with property_service: '%s'='%s'\n", name, value);
     } else {
-        printf("   Modify data structure: '%s'='%s'\n", name, value);
+        printf("Modify data structure: '%s'='%s'\n", name, value);
     }
 
     __system_property_get(name, value_read);
 
     if(strlen(value_read)) {
-        printf("   Existing property: '%s'='%s'\n", name, value_read);
+        printf("Existing property: '%s'='%s'\n", name, value_read);
         if (trigger) {
             if (!strncmp(name, "ro.", 3)) __system_property_del(name); // Only delete ro props
             ret = __system_property_set(name, value);
@@ -147,7 +147,7 @@ int x_property_set(const char *name, const char *value)
     }
 
     __system_property_get(name, value_read);
-    printf("   Check property: '%s'='%s'\n", name, value_read);
+    printf("Recheck property: '%s'='%s'\n", name, value_read);
 
     return 0;
 }
@@ -247,10 +247,9 @@ int main(int argc, char *argv[])
         dup2(null, 1);
     }
 
-    printf("Hacky setprop by nkk71\n");
-    printf("Modified for Magisk by topjohnwu\n");
+    printf("resetprop by nkk71 & topjohnwu\n");
 
-    printf("   Initializing...\n");
+    printf("Initializing...\n");
     if (__system_properties_init()) {
         fprintf(stderr, "Error during init\n");
         return 1;
@@ -259,7 +258,7 @@ int main(int argc, char *argv[])
     if (file) {
         if (read_prop_file(filename)) return 1;
     } else if (del) {
-        printf("   Attempting to delete '%s'\n", name);
+        printf("Attempting to delete '%s'\n", name);
         if (__system_property_del(name)) return 1;
     } else {
         if(x_property_set(name, value)) return 1;
