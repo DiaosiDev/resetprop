@@ -159,22 +159,33 @@ int read_prop_file(const char* filename) {
         fprintf(stderr, "Cannot open \'%s\'\n", filename);
         return 1;
     }
-    char *line = NULL, name[PROP_NAME_MAX], value[PROP_VALUE_MAX];
+    char *line = NULL, *pch, name[PROP_NAME_MAX], value[PROP_VALUE_MAX];
     size_t len;
     ssize_t read;
-    int no_data = 0;
+    int comment = 0, i;
     while ((read = getline(&line, &len, fp)) != -1) {
-        no_data = 1;
-        for (int i = 0; i < read; ++i) {
+        // Remove the trailing newline
+        if (line[read - 1] == '\n') {
+            line[read - 1] = '\0';
+            --read;
+        }
+        comment = 0;
+        for (i = 0; i < read; ++i) {
+            // Ignore starting spaces
             if (line[i] == ' ') continue;
             else {
-                if (line[i] != '#') no_data = 0;
+                // A line starting with # is ignored
+                if (line[i] == '#') comment = 1;
                 break;
             }
         }
-        if (no_data) continue;
-        if (sscanf(line, "%[^=]=%s", name, value) == 2)
-            x_property_set(name, value);
+        if (comment) continue;
+        pch = strchr(line, '=');
+        // Ignore ivalid formats
+        if ( ((pch == NULL) || (i >= (pch - line))) || (pch >= line + read - 1) ) continue;
+        // Separate the string
+        *pch = '\0';
+        x_property_set(line + i, pch + 1);
     }
     free(line);
     fclose(fp);
